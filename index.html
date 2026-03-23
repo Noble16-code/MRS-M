@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta
+    name="description"
+    content="A dreamy pastel confession site with interactive stories, memories, and little romantic surprises."
+  >
+  <title>A Pastel Little Universe</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="is-loading">
+  <div class="scroll-progress" aria-hidden="true">
+    <div class="scroll-progress-bar" id="scroll-progress-bar"></div>
+  </div>
+  <div class="cursor-layer" id="cursor-layer" aria-hidden="true"></div>
+  <div class="loader-screen" id="loader-screen" aria-live="polite">
+    <div class="loader-orb loader-orb-one" aria-hidden="true"></div>
+    <div class="loader-orb loader-orb-two" aria-hidden="true"></div>
+    <div class="loader-card">
+      <p class="eyebrow">Booting Up A Ridiculous Amount Of Feelings</p>
+      <h2 class="loader-title">Who's a good girl??? <span data-bind="herName"></span></h2>
+      <div class="loader-shell">
+        <div class="loader-ring">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="loader-ring-track" cx="60" cy="60" r="50"></circle>
+            <circle class="loader-ring-fill" id="loader-ring-fill" cx="60" cy="60" r="50"></circle>
+          </svg>
+          <div class="loader-ring-copy">
+            <strong id="loader-seconds">30</strong>
+            <span>seconds</span>
+          </div>
+        </div>
+        <div class="loader-copy">
+          <p class="loader-status" id="loader-status">Dusting the butterflies and pretending this is normal.</p>
+          <p class="loader-sentence" id="loader-sentence">This loading screen is just my feelings wearing a production budget.</p>
+          <div class="loader-progress-track">
+            <div class="loader-progress-fill" id="loader-progress-fill"></div>
+          </div>
+          <div class="loader-tags" id="loader-tags"></div>
+        </div>
+      </div>
+      <div class="loader-randoms" id="loader-randoms"></div>
+    </div>
+  </div>
+  <canvas id="sky-canvas" aria-hidden="true"></canvas>
+  <div class="page-glow" aria-hidden="true"></div>
+  <div class="orb orb-one" aria-hidden="true"></div>
+  <div class="orb orb-two" aria-hidden="true"></div>
+  <div class="orb orb-three" aria-hidden="true"></div>
+  <div class="celebration-layer" id="celebration-layer" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="#hero">My favorite Girl</a>
+    <nav class="topnav" aria-label="Primary">
+      <a href="#reasons">1</a>
+      <a href="#timeline">2</a>
+      <a href="#scenes">3</a>
+      <a href="#final-note">4</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero reveal visible" id="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">A handmade confession for Mommy<span data-bind="herName"></span></p>
+        <h1>
+          If my feelings for you turned into a website,
+          <span class="accent">it would look a little like this.</span>
+        </h1>
+        <p class="hero-text">
+          You are my
+          <span class="type-pill" id="type-pill" aria-live="polite"></span>
+          and this website is me showing you how much I feel for you
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#reasons">Enter my mind</a>
+          <button class="button ghost" id="sprinkle-love" type="button">Enter my ass</button>
+        </div>
+      </div>
+
+      <div class="hero-card">
+        <div class="mini-window">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <div class="heart-cluster" id="sparkle-layer" aria-hidden="true"></div>
+        <p class="hero-card-label">Live feed from my brain</p>
+        <div class="hero-meter">
+          <span>Thinking about you</span>
+          <div class="meter-track">
+            <div class="meter-fill"></div>
+          </div>
+          <strong>All day, Everyday</strong>
+        </div>
+        <div class="hero-badges">
+          <span>You're Amazing</span>
+          <span>You're gorgeous</span>
+          <span>Tu es magnifique</span>
+        </div>
+        <div class="hero-stats">
+          <article class="hero-stat">
+            <strong id="thought-counter">67</strong>
+            <span>brain love tabs open</span>
+          </article>
+          <article class="hero-stat">
+            <strong>24/7</strong>
+            <span>smile interference</span>
+          </article>
+          <article class="hero-stat">
+            <strong>1</strong>
+            <span>very serious crush</span>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="marquee-strip reveal" aria-label="Looping compliments">
+      <div class="marquee-track" id="marquee-track"></div>
+    </section>
+
+    <section class="section reveal" id="reasons">
+      <div class="section-heading">
+        <p class="eyebrow">You stay on my mind</p>
+        <h2>Rent Free</h2>
+        <p>
+          Not in a creepy way. In a wow-you're-so-lovely-that-my-thoughts-keep-doing-laps kind of way, but also in a creepy way.
+        </p>
+      </div>
+      <div class="reason-grid" id="reason-grid"></div>
+    </section>
+
+    <section class="section timeline-section reveal" id="timeline">
+      <div class="section-heading">
+        <p class="eyebrow">I really really EXTRA EXTRA really like you</p>
+        <h2>The Next steps because you are mine</h2>
+        <p>Every stage was supposed to be casual. It absolutely did not stay casual.</p>
+      </div>
+      <div class="timeline" id="timeline-list"></div>
+    </section>
+
+    <section class="section split-section reveal" id="details">
+      <div class="split-panel detail-panel">
+        <div class="section-heading align-left">
+          <p class="eyebrow">Little Things</p>
+          <h2>The Details That Do It For Me</h2>
+          <p>Tap a detail and it turns into a floating note, because apparently even my compliments need special effects.</p>
+        </div>
+        <div class="detail-cloud" id="detail-cloud"></div>
+        <div class="floating-note-board" id="floating-note-board" aria-live="polite"></div>
+      </div>
+
+      <div class="split-panel collage-panel">
+        <div class="section-heading align-left">
+          <p class="eyebrow">Mood Board</p>
+          <h2>The Vibe You Bring Into My Life</h2>
+          <p>You might just like my ass</p>
+        </div>
+        <div class="collage" id="collage"></div>
+      </div>
+    </section>
+
+    <section class="section scenes-section reveal" id="scenes">
+      <div class="section-heading">
+        <p class="eyebrow">Replay Button</p>
+        <h2>3...2....1....Go?</h2>
+        <p>wait nvm its facial recognition</p>
+      </div>
+      <div class="scene-shell">
+        <div class="scene-buttons" id="scene-buttons" role="tablist" aria-label="Memory scenes"></div>
+        <article class="scene-display" id="scene-display"></article>
+      </div>
+    </section>
+
+    <section class="section garden-section reveal" id="garden">
+      <div class="section-heading">
+        <p class="eyebrow">Interactive Feelings</p>
+        <h2>Plant A Tiny Confession Garden</h2>
+        <p>Just click like you grab my ass</p>
+      </div>
+      <div class="garden-controls">
+        <button class="button primary" id="plant-seed" type="button">Plant A Confession</button>
+        <p class="garden-caption">No watering required. Just feelings then you and I</p>
+      </div>
+      <div class="garden-bed" id="garden-bed" aria-live="polite"></div>
+    </section>
+
+    <section class="section charm-section reveal" id="extras">
+      <div class="section-heading">
+        <p class="eyebrow">You're EXTRA EXTRA special to me so ill be EXTRA EXTRA</p>
+        <h2>Funny Little Features I Added Because A Normal Website Felt Too Calm</h2>
+        <p>Push a button</p>
+      </div>
+      <div class="fortune-shell">
+        <article class="fortune-card">
+          <p class="fortune-label">Current randomly generated truth</p>
+          <h3 id="fortune-output">Press the button and let the website expose me a little more.</h3>
+          <div class="fortune-actions">
+            <button class="button primary" id="fortune-button" type="button">Generate Cute Propaganda</button>
+            <button class="button ghost" id="compliment-burst" type="button">Drop Compliments Everywhere</button>
+          </div>
+        </article>
+
+        <aside class="control-card">
+          <p class="fortune-label">Chaos Dashboard</p>
+          <div class="control-buttons">
+            <button class="button ghost" id="palette-button" type="button">Shuffle NOW</button>
+            <button class="button ghost" id="confetti-button" type="button">Trigger Butterfly Panic</button>
+          </div>
+          <div class="fortune-mini" id="fortune-mini"></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section lab-section reveal" id="message-lab">
+      <div class="section-heading">
+        <p class="eyebrow">Calibration Station</p>
+        <h2>How Strong Is The Crush?</h2>
+        <p>Move the slider for a completely scientific reading.</p>
+      </div>
+      <div class="lab-card">
+        <label class="lab-label" for="crush-meter">Current reading</label>
+        <input id="crush-meter" type="range" min="1" max="100" value="84">
+        <div class="lab-output">
+          <strong id="meter-value">84%</strong>
+          <p id="meter-message">Strong enough that I made a whole website instead of acting normal.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section final-section reveal" id="final-note">
+      <div class="section-heading">
+        <p class="eyebrow">The Important Part</p>
+        <h2>One More Click, One Honest Note</h2>
+        <p>This is the digital equivalent of taking a deep breath and saying it properly except im shy.</p>
+      </div>
+
+      <div class="envelope-shell">
+        <button class="envelope" id="open-envelope" type="button" aria-expanded="false">
+          <span class="envelope-top"></span>
+          <span class="envelope-letter">
+            <span class="letter-title">Open Me</span>
+            <span class="letter-subtitle">This part is especially sincere.</span>
+          </span>
+        </button>
+
+        <article class="final-letter" id="final-letter" hidden>
+          <p class="letter-heading">Dear <span data-bind="herName"></span>,</p>
+          <p id="final-message"></p>
+          <p class="letter-signoff">From,<br><span data-bind="yourName"></span></p>
+          <button class="button ghost" id="celebrate-button" type="button">Release The Fireworks</button>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Made with dramatic sincerity, and a suspicious amount of effort.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
