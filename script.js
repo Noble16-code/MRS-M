@@ -1,4 +1,4 @@
-const LOADER_DURATION = 60000;
+const LOADER_DURATION = 10000;
 
 // Personalize this object with names and details to make the page feel more specific.
 const romanceProfile = {
