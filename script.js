@@ -1,6 +1,6 @@
 const LOADER_DURATION = 10000;
 
-// Personalize this object with names and details to make the page feel more specific.
+
 const romanceProfile = {
   herName: "Maia",
   yourName: "Dotun",
