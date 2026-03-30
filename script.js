@@ -927,6 +927,231 @@ const initSky = () => {
   window.addEventListener("resize", resize);
 };
 
+const initConstellation = () => {
+  const section = document.getElementById("constellation");
+  const canvasShell = document.querySelector(".constellation-canvas-shell");
+  const canvas = document.getElementById("constellation-canvas");
+  const context = canvas?.getContext("2d");
+  const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const starPoints = [
+    { x: 0.06, y: 0.76 },
+    { x: 0.06, y: 0.2 },
+    { x: 0.13, y: 0.47 },
+    { x: 0.2, y: 0.2 },
+    { x: 0.2, y: 0.76 },
+    { x: 0.31, y: 0.76 },
+    { x: 0.37, y: 0.2 },
+    { x: 0.44, y: 0.76 },
+    { x: 0.34, y: 0.5 },
+    { x: 0.41, y: 0.5 },
+    { x: 0.51, y: 0.2 },
+    { x: 0.59, y: 0.2 },
+    { x: 0.55, y: 0.2 },
+    { x: 0.55, y: 0.76 },
+    { x: 0.51, y: 0.76 },
+    { x: 0.59, y: 0.76 },
+    { x: 0.68, y: 0.76 },
+    { x: 0.74, y: 0.2 },
+    { x: 0.81, y: 0.76 },
+    { x: 0.71, y: 0.5 },
+    { x: 0.78, y: 0.5 }
+  ];
+  const starSegments = [
+    [0, 1],
+    [1, 2],
+    [2, 3],
+    [3, 4],
+    [5, 6],
+    [6, 7],
+    [8, 9],
+    [10, 11],
+    [12, 13],
+    [14, 15],
+    [16, 17],
+    [17, 18],
+    [19, 20]
+  ];
+  const pointOrder = [...new Set(starSegments.flat())];
+  const pointRanks = starPoints.map((_, index) => {
+    const rank = pointOrder.indexOf(index);
+    return rank === -1 ? index : rank;
+  });
+  let width = 0;
+  let height = 0;
+  let ambientStars = [];
+  let revealProgress = 0;
+  let targetProgress = 0;
+  let lastTime = 0;
+  let hasAutoStarted = false;
+
+  if (!section || !canvasShell || !canvas || !context) {
+    return;
+  }
+
+  const createAmbientStars = () =>
+    Array.from(
+      { length: Math.min(76, Math.max(32, Math.floor((width * height) / 16000))) },
+      () => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        r: Math.random() * 1.8 + 0.6,
+        phase: Math.random() * Math.PI * 2,
+        speed: Math.random() * 0.9 + 0.55
+      })
+    );
+
+  const projectPoint = (point) => {
+    const padX = Math.min(78, width * 0.09);
+    const padY = Math.min(84, height * 0.18);
+
+    return {
+      x: padX + point.x * (width - padX * 2),
+      y: padY + point.y * (height - padY * 2)
+    };
+  };
+
+  const resize = () => {
+    width = canvasShell.clientWidth;
+    height = canvasShell.clientHeight;
+
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+    ambientStars = createAmbientStars();
+  };
+
+  const drawAmbient = (time) => {
+    const haze = context.createRadialGradient(
+      width * 0.5,
+      height * 0.5,
+      10,
+      width * 0.5,
+      height * 0.5,
+      width * 0.6
+    );
+    haze.addColorStop(0, `rgba(255, 214, 232, ${0.2 + revealProgress * 0.12})`);
+    haze.addColorStop(0.45, `rgba(214, 232, 255, ${0.16 + revealProgress * 0.1})`);
+    haze.addColorStop(0.8, `rgba(234, 220, 255, ${0.12 + revealProgress * 0.08})`);
+    haze.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+    context.fillStyle = haze;
+    context.fillRect(0, 0, width, height);
+
+    ambientStars.forEach((star, index) => {
+      const twinkle = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * 0.0012 * star.speed + star.phase));
+      const alpha = 0.18 + twinkle * 0.45;
+
+      context.beginPath();
+      if (index % 4 === 0) {
+        context.fillStyle = `rgba(255, 196, 221, ${alpha})`;
+      } else if (index % 4 === 1) {
+        context.fillStyle = `rgba(196, 224, 255, ${alpha})`;
+      } else if (index % 4 === 2) {
+        context.fillStyle = `rgba(235, 218, 255, ${alpha})`;
+      } else {
+        context.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      }
+      context.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+      context.fill();
+    });
+  };
+
+  const drawConstellation = () => {
+    const points = starPoints.map(projectPoint);
+    const revealedSegments = revealProgress * starSegments.length;
+
+    starSegments.forEach(([fromIndex, toIndex], index) => {
+      const segmentProgress = Math.max(0, Math.min(1, revealedSegments - index));
+
+      if (segmentProgress <= 0) {
+        return;
+      }
+
+      const from = points[fromIndex];
+      const to = points[toIndex];
+      const current = {
+        x: from.x + (to.x - from.x) * segmentProgress,
+        y: from.y + (to.y - from.y) * segmentProgress
+      };
+      const alpha = 0.25 + segmentProgress * 0.45;
+
+      context.beginPath();
+      context.strokeStyle = `rgba(220, 201, 255, ${alpha * 0.62})`;
+      context.lineWidth = 10;
+      context.lineCap = "round";
+      context.moveTo(from.x, from.y);
+      context.lineTo(current.x, current.y);
+      context.stroke();
+
+      context.beginPath();
+      context.strokeStyle = `rgba(255, 251, 255, ${alpha})`;
+      context.lineWidth = 3;
+      context.moveTo(from.x, from.y);
+      context.lineTo(current.x, current.y);
+      context.stroke();
+    });
+
+    points.forEach((point, index) => {
+      const activation = Math.max(
+        0.2,
+        Math.min(1, revealProgress * pointOrder.length - pointRanks[index] + 0.45)
+      );
+
+      context.beginPath();
+      context.fillStyle = `rgba(255, 214, 232, ${0.2 + activation * 0.28})`;
+      context.arc(point.x, point.y, 11 + activation * 10, 0, Math.PI * 2);
+      context.fill();
+
+      context.beginPath();
+      context.fillStyle = `rgba(255, 255, 255, ${0.34 + activation * 0.52})`;
+      context.arc(point.x, point.y, 3.4 + activation * 2, 0, Math.PI * 2);
+      context.fill();
+    });
+  };
+
+  const render = (time) => {
+    const delta = lastTime ? Math.min(40, time - lastTime) : 16;
+    lastTime = time;
+
+    if (targetProgress > revealProgress) {
+      const step = reducedMotionQuery.matches ? 1 : delta / 2400;
+      revealProgress = Math.min(targetProgress, revealProgress + step);
+    }
+
+    context.clearRect(0, 0, width, height);
+    drawAmbient(time);
+    drawConstellation();
+    requestAnimationFrame(render);
+  };
+
+  const startReveal = () => {
+    revealProgress = 0;
+    targetProgress = 1;
+  };
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && !hasAutoStarted) {
+          hasAutoStarted = true;
+          startReveal();
+        }
+      });
+    },
+    { threshold: 0.45 }
+  );
+
+  canvasShell.addEventListener("click", startReveal);
+  observer.observe(section);
+  resize();
+  requestAnimationFrame(render);
+  window.addEventListener("resize", resize);
+};
+
 const initScrollProgress = () => {
   const bar = document.getElementById("scroll-progress-bar");
 
@@ -1114,6 +1339,7 @@ const init = async () => {
   initCursorTrail();
   initTiltCards();
   initSky();
+  initConstellation();
 
   await initLoader();
   complimentBurst(4);
