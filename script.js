@@ -126,6 +126,10 @@ const romanceProfile = {
     { id: "scene-3", label: "The Realization", title: "The exact problem I ran into", text: "I kept telling myself it was a normal crush, and then I caught myself caring about you in this sweet, sincere, not-even-trying-to-be-cool way.", accent: "That is usually when you know it is real." },
     { id: "scene-4", label: "The Hope", title: "Why I made this for you", text: "Because I wanted to say something honest and memorable. And because you are worth effort, even the slightly dramatic kind.", accent: "If this made you smile, then honestly that already means a lot." }
   ],
+  bookPages: [
+    { image: "", alt: "Gallery page 1", caption: "Page 1: Swap this URL for your own photo path." },
+    { image: "", alt: "Gallery page 2", caption: "Page 2: One object here equals one page in the book." },
+  ],
   blossoms: [
     "I like the way my mood changes when you show up.",
     "You are very easy to write nice things about.",
@@ -286,6 +290,185 @@ const renderScenes = () => {
   });
 
   paintScene(activeScene);
+};
+
+const createBookFace = (page, side) => {
+  const face = document.createElement("figure");
+  face.className = `book-face ${side === "back" ? "book-face-back" : "book-face-front"}`;
+
+  if (page && page.image) {
+    const image = document.createElement("img");
+    image.src = page.image;
+    image.alt = page.alt || "Book gallery page";
+    face.appendChild(image);
+  } else {
+    const placeholder = document.createElement("div");
+    placeholder.className = "book-placeholder";
+    placeholder.innerHTML = "<span>Add an image URL/path for this page in romanceProfile.bookPages.</span>";
+    face.appendChild(placeholder);
+  }
+
+  const caption = document.createElement("figcaption");
+  caption.className = "book-caption";
+  caption.textContent = page && page.caption ? page.caption : "Add a caption for this page.";
+  face.appendChild(caption);
+
+  return face;
+};
+
+const renderBookGallery = () => {
+  const pages = romanceProfile.bookPages;
+  const track = document.getElementById("flipbook-track");
+  const flipbook = document.getElementById("flipbook");
+  const flipbookShell = document.querySelector(".flipbook-shell");
+  const prevButton = document.getElementById("book-prev");
+  const nextButton = document.getElementById("book-next");
+  const indicator = document.getElementById("book-page-indicator");
+  const lock = document.getElementById("book-lock");
+  const passwordInput = document.getElementById("book-password");
+  const unlockButton = document.getElementById("book-unlock");
+  const lockMessage = document.getElementById("book-lock-message");
+  const noteCard = document.querySelector(".book-note-card");
+
+  if (!track || !flipbook || !prevButton || !nextButton || !indicator || !pages.length) {
+    return;
+  }
+
+  const sheetCount = Math.ceil(pages.length / 2);
+  const sheets = [];
+  let turnedSheets = 0;
+  let unlocked = false;
+
+  track.innerHTML = "";
+
+  for (let index = 0; index < sheetCount; index += 1) {
+    const sheet = document.createElement("article");
+    sheet.className = "book-sheet";
+    sheet.style.zIndex = String(sheetCount - index);
+
+    const frontPage = pages[index * 2];
+    const backPage = pages[index * 2 + 1];
+
+    sheet.appendChild(createBookFace(frontPage, "front"));
+    sheet.appendChild(createBookFace(backPage, "back"));
+    track.appendChild(sheet);
+    sheets.push(sheet);
+  }
+
+  const updateIndicator = () => {
+    const startPage = Math.min(turnedSheets * 2 + 1, pages.length);
+    const endPage = Math.min(startPage + 1, pages.length);
+    indicator.textContent =
+      startPage === endPage
+        ? `Page ${startPage} of ${pages.length}`
+        : `Pages ${startPage}-${endPage} of ${pages.length}`;
+  };
+
+  const setLockState = (state) => {
+    unlocked = state;
+    prevButton.disabled = !state;
+    nextButton.disabled = !state;
+
+    if (flipbookShell) {
+      flipbookShell.classList.toggle("is-locked", !state);
+    }
+
+    if (noteCard) {
+      noteCard.classList.toggle("is-unlocked", state);
+      const title = noteCard.querySelector("h3");
+      const note = noteCard.querySelector("p:not(.fortune-label):not(.book-page-indicator)");
+
+      if (title) {
+        title.textContent = state ? "Photo Album Unlocked" : "Photo Album Locked";
+      }
+
+      if (note) {
+        note.textContent = state
+          ? "Gallery unlocked. Click the book pages or use the buttons."
+          : "Enter the password to open this section and flip through the pages.";
+      }
+    }
+  };
+
+  const flipForward = () => {
+    if (!unlocked || turnedSheets >= sheetCount) {
+      return;
+    }
+
+    sheets[turnedSheets].classList.add("is-turned");
+    turnedSheets += 1;
+    updateIndicator();
+  };
+
+  const flipBackward = () => {
+    if (!unlocked || turnedSheets <= 0) {
+      return;
+    }
+
+    turnedSheets -= 1;
+    sheets[turnedSheets].classList.remove("is-turned");
+    updateIndicator();
+  };
+
+  nextButton.addEventListener("click", flipForward);
+  prevButton.addEventListener("click", flipBackward);
+
+  flipbook.addEventListener("click", (event) => {
+    if (!unlocked) {
+      return;
+    }
+
+    const rect = flipbook.getBoundingClientRect();
+    const clickedLeftSide = event.clientX < rect.left + rect.width / 2;
+
+    if (clickedLeftSide) {
+      flipBackward();
+    } else {
+      flipForward();
+    }
+  });
+
+  flipbook.addEventListener("keydown", (event) => {
+    if (!unlocked) {
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      flipForward();
+    }
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      flipBackward();
+    }
+  });
+
+  if (unlockButton && passwordInput && lockMessage) {
+    const tryUnlock = () => {
+      if (passwordInput.value.trim() === "67") {
+        setLockState(true);
+        lockMessage.textContent = "Unlocked.";
+        if (lock) {
+          lock.classList.add("is-hidden");
+        }
+      } else {
+        setLockState(false);
+        lockMessage.textContent = "Wrong password.";
+      }
+    };
+
+    unlockButton.addEventListener("click", tryUnlock);
+    passwordInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        tryUnlock();
+      }
+    });
+  }
+
+  setLockState(false);
+  updateIndicator();
 };
 
 const renderMarquee = () => {
@@ -625,6 +808,32 @@ const playChime = (extended = false) => {
   }, notes.length * 180 + 400);
 };
 
+const initBackgroundAudio = () => {
+  const audio = document.getElementById("bg-audio-player");
+
+  if (!audio) {
+    return;
+  }
+
+  const tryPlay = () => {
+    const playPromise = audio.play();
+
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {});
+    }
+  };
+
+  // Try immediately for browsers that allow autoplay.
+  tryPlay();
+  setTimeout(tryPlay, 700);
+  setTimeout(tryPlay, 1800);
+
+  // Fallback for autoplay-restricted browsers.
+  ["pointerdown", "touchstart", "keydown"].forEach((eventName) => {
+    window.addEventListener(eventName, tryPlay, { once: true });
+  });
+};
+
 const initReveals = () => {
   const observer = new IntersectionObserver(
     (entries) => {
@@ -767,7 +976,7 @@ const initTiltCards = () => {
   }
 
   const cards = document.querySelectorAll(
-    ".hero-card, .reason-card, .timeline-card, .split-panel, .scene-display, .lab-card, .fortune-card, .control-card, .final-letter"
+    ".hero-card, .reason-card, .timeline-card, .split-panel, .scene-display, .lab-card, .fortune-card, .control-card, .book-note-card, .final-letter"
   );
 
   cards.forEach((card) => {
@@ -883,12 +1092,14 @@ const initLoader = () =>
   });
 
 const init = async () => {
+  initBackgroundAudio();
   bindText();
   renderReasons();
   renderTimeline();
   renderDetails();
   renderCollage();
   renderScenes();
+  renderBookGallery();
   renderMarquee();
   renderFortuneMini("systems nominal");
   initGarden();

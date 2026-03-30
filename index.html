@@ -57,7 +57,8 @@
       <a href="#reasons">1</a>
       <a href="#timeline">2</a>
       <a href="#scenes">3</a>
-      <a href="#final-note">4</a>
+      <a href="#book-gallery">4</a>
+      <a href="#final-note">5</a>
     </nav>
   </header>
 
@@ -230,6 +231,40 @@
       </div>
     </section>
 
+    <section class="section book-gallery-section reveal" id="book-gallery">
+      <div class="section-heading">
+        <p class="eyebrow">UUUUSSSS</p>
+        <h2>Gallery</h2>
+        <p>Click the right page to flip forward, and click the left side to flip back.</p>
+      </div>
+      <div class="book-lock" id="book-lock">
+        <p class="fortune-label">Private Gallery</p>
+        <h3>Enter password to unlock</h3>
+        <div class="book-lock-controls">
+          <input id="book-password" type="password" inputmode="numeric" autocomplete="off" placeholder="Password">
+          <button class="button primary" id="book-unlock" type="button">Unlock</button>
+        </div>
+        <p class="book-lock-message" id="book-lock-message" aria-live="polite"></p>
+      </div>
+      <div class="book-gallery-shell">
+        <div class="flipbook-shell">
+          <div class="flipbook" id="flipbook" tabindex="0" aria-label="Photo flip book">
+            <div class="flipbook-track" id="flipbook-track"></div>
+          </div>
+          <div class="book-controls">
+            <button class="button ghost" id="book-prev" type="button">Previous Page</button>
+            <button class="button primary" id="book-next" type="button">Next Page</button>
+          </div>
+        </div>
+        <aside class="book-note-card">
+          <p class="fortune-label">Gallery Status</p>
+          <h3>Photo Album Locked</h3>
+          <p>Enter the password to open this section and flip through the pages.</p>
+          <p class="book-page-indicator" id="book-page-indicator">Page 1</p>
+        </aside>
+      </div>
+    </section>
+
     <section class="section final-section reveal" id="final-note">
       <div class="section-heading">
         <p class="eyebrow">The Important Part</p>
@@ -259,6 +294,17 @@
   <footer class="footer">
     <p>Made with dramatic sincerity, and a suspicious amount of effort.</p>
   </footer>
+
+  <audio
+    id="bg-audio-player"
+    class="bg-audio-player"
+    autoplay
+    loop
+    preload="auto"
+    playsinline
+  >
+    <source src="" type="audio/mpeg">
+  </audio>
 
   <script src="script.js"></script>
 </body>
