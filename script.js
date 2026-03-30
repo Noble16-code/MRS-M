@@ -1,4 +1,8 @@
 const LOADER_DURATION = 10000;
+const STORAGE_KEYS = {
+  audioPreference: "mrsm-audio-enabled",
+  garden: "mrsm-garden"
+};
 
 
 const romanceProfile = {
@@ -163,7 +167,53 @@ const pickMany = (array, count) => {
   return picked;
 };
 
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const withAlpha = (hex, alpha) => {
+  const safeAlpha = clamp(alpha, 0, 1);
+  const alphaHex = Math.round(safeAlpha * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `${hex}${alphaHex}`;
+};
+
+const readStoredValue = (key, fallback = null) => {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value === null ? fallback : value;
+  } catch {
+    return fallback;
+  }
+};
+
+const readStoredJSON = (key, fallback) => {
+  const raw = readStoredValue(key);
+
+  if (!raw) {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+};
+
+const writeStoredValue = (key, value) => {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Ignore storage failures and keep the experience working.
+  }
+};
+
 let activePaletteIndex = 0;
+let activePalette = romanceProfile.palettes[0];
+let crushLevel = 84;
+let gardenState = [];
+let sparkleAutoBurstCount = 3;
+let syncSparkleLoop = null;
 
 const bindText = () => {
   document.querySelectorAll("[data-bind]").forEach((node) => {
@@ -295,22 +345,34 @@ const renderScenes = () => {
 const createBookFace = (page, side) => {
   const face = document.createElement("figure");
   face.className = `book-face ${side === "back" ? "book-face-back" : "book-face-front"}`;
+  face.setAttribute("data-side", side);
+  const photoSurface = document.createElement("div");
+  photoSurface.className = "book-photo-surface";
 
   if (page && page.image) {
     const image = document.createElement("img");
     image.src = page.image;
     image.alt = page.alt || "Book gallery page";
-    face.appendChild(image);
+    photoSurface.appendChild(image);
   } else {
     const placeholder = document.createElement("div");
     placeholder.className = "book-placeholder";
     placeholder.innerHTML = "<span>Add an image URL/path for this page in romanceProfile.bookPages.</span>";
-    face.appendChild(placeholder);
+    photoSurface.appendChild(placeholder);
   }
+
+  face.appendChild(photoSurface);
 
   const caption = document.createElement("figcaption");
   caption.className = "book-caption";
-  caption.textContent = page && page.caption ? page.caption : "Add a caption for this page.";
+  const label = document.createElement("span");
+  label.className = "book-caption-kicker";
+  label.textContent = side === "front" ? "scrapbook memory" : "turn it over";
+  const note = document.createElement("span");
+  note.className = "book-caption-hand";
+  note.textContent = page && page.caption ? page.caption : "Add a caption for this page.";
+  caption.appendChild(label);
+  caption.appendChild(note);
   face.appendChild(caption);
 
   return face;
@@ -336,8 +398,19 @@ const renderBookGallery = () => {
 
   const sheetCount = Math.ceil(pages.length / 2);
   const sheets = [];
+  const stackRotations = ["-6deg", "-2deg", "2.8deg", "-3.4deg", "5deg", "-1.8deg"];
+  const stackOffsets = [
+    { x: "0rem", y: "0rem" },
+    { x: "-0.55rem", y: "0.4rem" },
+    { x: "0.7rem", y: "0.8rem" },
+    { x: "-0.3rem", y: "1.15rem" },
+    { x: "0.45rem", y: "1.55rem" }
+  ];
   let turnedSheets = 0;
   let unlocked = false;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let ignoreBookTapUntil = 0;
 
   track.innerHTML = "";
 
@@ -345,6 +418,10 @@ const renderBookGallery = () => {
     const sheet = document.createElement("article");
     sheet.className = "book-sheet";
     sheet.style.zIndex = String(sheetCount - index);
+    sheet.style.setProperty("--stack-rotate", stackRotations[index % stackRotations.length]);
+    sheet.style.setProperty("--stack-x", stackOffsets[index % stackOffsets.length].x);
+    sheet.style.setProperty("--stack-y", stackOffsets[index % stackOffsets.length].y);
+    sheet.style.setProperty("--stack-scale", String(Math.max(0.88, 1 - index * 0.03)));
 
     const frontPage = pages[index * 2];
     const backPage = pages[index * 2 + 1];
@@ -373,6 +450,13 @@ const renderBookGallery = () => {
       flipbookShell.classList.toggle("is-locked", !state);
     }
 
+    flipbook.setAttribute(
+      "aria-label",
+      state
+        ? "Photo flip book. Tap, swipe, or use the page buttons to move through the gallery."
+        : "Photo flip book locked until the password is entered."
+    );
+
     if (noteCard) {
       noteCard.classList.toggle("is-unlocked", state);
       const title = noteCard.querySelector("h3");
@@ -384,7 +468,7 @@ const renderBookGallery = () => {
 
       if (note) {
         note.textContent = state
-          ? "Gallery unlocked. Click the book pages or use the buttons."
+          ? "Gallery unlocked. The polaroids can be tapped, swiped, or nudged with the buttons."
           : "Enter the password to open this section and flip through the pages.";
       }
     }
@@ -418,6 +502,10 @@ const renderBookGallery = () => {
       return;
     }
 
+    if (Date.now() < ignoreBookTapUntil) {
+      return;
+    }
+
     const rect = flipbook.getBoundingClientRect();
     const clickedLeftSide = event.clientX < rect.left + rect.width / 2;
 
@@ -427,6 +515,52 @@ const renderBookGallery = () => {
       flipForward();
     }
   });
+
+  flipbook.addEventListener(
+    "touchstart",
+    (event) => {
+      const touch = event.changedTouches[0];
+
+      if (!touch) {
+        return;
+      }
+
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    },
+    { passive: true }
+  );
+
+  flipbook.addEventListener(
+    "touchend",
+    (event) => {
+      if (!unlocked) {
+        return;
+      }
+
+      const touch = event.changedTouches[0];
+
+      if (!touch) {
+        return;
+      }
+
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
+
+      if (Math.abs(deltaX) < 40 || Math.abs(deltaX) < Math.abs(deltaY)) {
+        return;
+      }
+
+      ignoreBookTapUntil = Date.now() + 400;
+
+      if (deltaX < 0) {
+        flipForward();
+      } else {
+        flipBackward();
+      }
+    },
+    { passive: true }
+  );
 
   flipbook.addEventListener("keydown", (event) => {
     if (!unlocked) {
@@ -511,33 +645,101 @@ const renderFortuneMini = (highlight) => {
   });
 };
 
-const plantConfession = () => {
-  const garden = document.getElementById("garden-bed");
+const createBlossomData = (quote = randomFrom(romanceProfile.blossoms)) => ({
+  quote,
+  left: Number((Math.random() * 72 + 6).toFixed(2)),
+  bottom: Number((Math.random() * 18 + 12).toFixed(2)),
+  rotate: Number((Math.random() * 8 - 4).toFixed(2))
+});
+
+const normalizeBlossomData = (blossom) => ({
+  quote:
+    typeof blossom?.quote === "string" && blossom.quote.trim()
+      ? blossom.quote.trim()
+      : randomFrom(romanceProfile.blossoms),
+  left: clamp(Number(blossom?.left) || 6, 6, 78),
+  bottom: clamp(Number(blossom?.bottom) || 12, 12, 30),
+  rotate: clamp(Number(blossom?.rotate) || 0, -4, 4)
+});
+
+const createBlossomNode = (blossomData) => {
   const blossom = document.createElement("article");
-  const quote = randomFrom(romanceProfile.blossoms);
+  const normalized = normalizeBlossomData(blossomData);
 
   blossom.className = "blossom";
-  blossom.style.left = `${Math.random() * 72 + 6}%`;
-  blossom.style.bottom = `${Math.random() * 18 + 12}%`;
-  blossom.style.transform = `rotate(${Math.random() * 8 - 4}deg)`;
+  blossom.style.left = `${normalized.left}%`;
+  blossom.style.bottom = `${normalized.bottom}%`;
+  blossom.style.transform = `rotate(${normalized.rotate}deg)`;
   blossom.innerHTML = `
     <strong>New bloom</strong>
-    <span>${quote}</span>
+    <span>${normalized.quote}</span>
   `;
 
-  garden.appendChild(blossom);
+  return blossom;
+};
 
-  if (garden.children.length > 8) {
-    garden.removeChild(garden.firstElementChild);
+const persistGardenState = () => {
+  writeStoredValue(STORAGE_KEYS.garden, JSON.stringify(gardenState));
+};
+
+const plantConfession = (blossomData = createBlossomData()) => {
+  const garden = document.getElementById("garden-bed");
+
+  if (!garden) {
+    return;
   }
+
+  const normalized = normalizeBlossomData(blossomData);
+  gardenState.push(normalized);
+
+  if (gardenState.length > 8) {
+    gardenState = gardenState.slice(-8);
+
+    if (garden.firstElementChild) {
+      garden.removeChild(garden.firstElementChild);
+    }
+  }
+
+  garden.appendChild(createBlossomNode(normalized));
+  persistGardenState();
 };
 
 const initGarden = () => {
   const plantButton = document.getElementById("plant-seed");
-  plantButton.addEventListener("click", plantConfession);
+  const garden = document.getElementById("garden-bed");
+
+  if (!plantButton || !garden) {
+    return;
+  }
+
+  const storedBlossoms = readStoredJSON(STORAGE_KEYS.garden, []);
+  const savedBlossoms = Array.isArray(storedBlossoms)
+    ? storedBlossoms.map(normalizeBlossomData).slice(-8)
+    : [];
+
+  plantButton.addEventListener("click", () => {
+    plantConfession();
+
+    if (crushLevel >= 70) {
+      const sparkleLayer = document.getElementById("sparkle-layer");
+      spawnSpark(sparkleLayer);
+    }
+  });
+
+  garden.innerHTML = "";
+  gardenState = [];
+
+  if (savedBlossoms.length > 0) {
+    gardenState = savedBlossoms;
+    gardenState.forEach((blossom) => {
+      garden.appendChild(createBlossomNode(blossom));
+    });
+    persistGardenState();
+    return;
+  }
 
   for (let i = 0; i < 3; i += 1) {
-    plantConfession();
+    plantConfession(createBlossomData());
   }
 };
 
@@ -547,15 +749,32 @@ const initMeter = () => {
   const message = document.getElementById("meter-message");
   const fallbackMessage =
     romanceProfile.meterMessages[romanceProfile.meterMessages.length - 1].text;
+  let previousLevel = Number(slider.value);
 
-  const update = () => {
+  const update = (interactive = false) => {
     const current = Number(slider.value);
     value.textContent = `${current}%`;
     const match = romanceProfile.meterMessages.find((item) => current <= item.max);
     message.textContent = match ? match.text : fallbackMessage;
+    applyCrushEffects(current);
+
+    if (interactive && current >= previousLevel + 12) {
+      const layer = current >= 75
+        ? document.getElementById("celebration-layer")
+        : document.getElementById("sparkle-layer");
+      const burstCount = Math.max(2, Math.round(current / 20));
+
+      for (let index = 0; index < burstCount; index += 1) {
+        setTimeout(() => {
+          spawnSpark(layer);
+        }, index * 80);
+      }
+    }
+
+    previousLevel = current;
   };
 
-  slider.addEventListener("input", update);
+  slider.addEventListener("input", () => update(true));
   update();
 };
 
@@ -655,6 +874,15 @@ const triggerButterflyPanic = () => {
 const initSparkles = () => {
   const container = document.getElementById("sparkle-layer");
   const button = document.getElementById("sprinkle-love");
+  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  let sparkleLoopId = 0;
+
+  if (!container || !button) {
+    return;
+  }
+
+  const adaptBurst = (amount) =>
+    coarsePointer ? Math.max(1, Math.round(amount * 0.65)) : amount;
 
   const burst = (amount = 10) => {
     for (let i = 0; i < amount; i += 1) {
@@ -662,9 +890,22 @@ const initSparkles = () => {
     }
   };
 
-  button.addEventListener("click", () => burst(16));
-  burst(12);
-  setInterval(() => burst(3), 2800);
+  syncSparkleLoop = () => {
+    if (sparkleLoopId) {
+      window.clearInterval(sparkleLoopId);
+    }
+
+    sparkleLoopId = window.setInterval(() => {
+      burst(adaptBurst(sparkleAutoBurstCount));
+    }, Math.max(1200, 3400 - crushLevel * 18));
+  };
+
+  button.addEventListener("click", () => {
+    burst(adaptBurst(Math.max(10, sparkleAutoBurstCount * 3)));
+  });
+
+  burst(adaptBurst(Math.max(6, sparkleAutoBurstCount * 2)));
+  syncSparkleLoop();
 };
 
 const initEnvelope = () => {
@@ -706,34 +947,58 @@ const initThoughtCounter = () => {
   }, 2200);
 };
 
-const applyPalette = (palette) => {
+const applyCrushEffects = (level = crushLevel) => {
   const root = document.documentElement;
   const body = document.body;
+  const pageGlow = document.querySelector(".page-glow");
   const orbOne = document.querySelector(".orb-one");
   const orbTwo = document.querySelector(".orb-two");
   const orbThree = document.querySelector(".orb-three");
+  const energy = clamp(level / 100, 0.01, 1);
 
-  Object.entries(palette).forEach(([key, value]) => {
-    root.style.setProperty(`--${key}`, value);
-  });
+  crushLevel = level;
+  sparkleAutoBurstCount = Math.max(1, Math.round(1 + energy * 4));
+
+  root.style.setProperty("--crush-energy", energy.toFixed(2));
+  root.style.setProperty("--meter-level-scale", energy.toFixed(2));
 
   body.style.background =
-    `radial-gradient(circle at top left, ${palette.blush}d8, transparent 28%), ` +
-    `radial-gradient(circle at 82% 18%, ${palette.sky}d0, transparent 24%), ` +
-    `radial-gradient(circle at bottom right, ${palette.mint}de, transparent 26%), ` +
+    `radial-gradient(circle at top left, ${withAlpha(activePalette.blush, 0.6 + energy * 0.22)}, transparent 28%), ` +
+    `radial-gradient(circle at 82% 18%, ${withAlpha(activePalette.sky, 0.54 + energy * 0.2)}, transparent 24%), ` +
+    `radial-gradient(circle at bottom right, ${withAlpha(activePalette.mint, 0.58 + energy * 0.22)}, transparent 26%), ` +
     "linear-gradient(180deg, #fff7fb 0%, #fffefb 52%, #fdf8ff 100%)";
 
+  if (pageGlow) {
+    pageGlow.style.background =
+      `radial-gradient(circle, ${withAlpha(activePalette.blush, 0.12 + energy * 0.24)}, ` +
+      `${withAlpha(activePalette.lilac, 0.08 + energy * 0.22)} 42%, transparent 68%)`;
+  }
+
   if (orbOne) {
-    orbOne.style.background = `${palette.blush}66`;
+    orbOne.style.background = withAlpha(activePalette.blush, 0.18 + energy * 0.32);
   }
 
   if (orbTwo) {
-    orbTwo.style.background = `${palette.sky}66`;
+    orbTwo.style.background = withAlpha(activePalette.sky, 0.18 + energy * 0.34);
   }
 
   if (orbThree) {
-    orbThree.style.background = `${palette.butter}59`;
+    orbThree.style.background = withAlpha(activePalette.butter, 0.14 + energy * 0.3);
   }
+
+  if (typeof syncSparkleLoop === "function") {
+    syncSparkleLoop();
+  }
+};
+
+const applyPalette = (palette) => {
+  activePalette = palette;
+
+  Object.entries(palette).forEach(([key, value]) => {
+    document.documentElement.style.setProperty(`--${key}`, value);
+  });
+
+  applyCrushEffects(crushLevel);
 };
 
 const shufflePalette = () => {
@@ -810,18 +1075,82 @@ const playChime = (extended = false) => {
 
 const initBackgroundAudio = () => {
   const audio = document.getElementById("bg-audio-player");
+  const toggleButton = document.getElementById("audio-toggle");
+  const toggleState = document.getElementById("audio-toggle-state");
 
-  if (!audio) {
+  if (!audio || !toggleButton || !toggleState) {
     return;
   }
 
+  let wantsAudio = readStoredValue(STORAGE_KEYS.audioPreference, "on") !== "off";
+
+  const syncToggle = () => {
+    const isPlaying = wantsAudio && !audio.paused;
+    toggleButton.classList.toggle("is-playing", isPlaying);
+    toggleButton.classList.toggle("is-paused", !isPlaying);
+    toggleButton.setAttribute("aria-pressed", String(isPlaying));
+    toggleButton.setAttribute(
+      "aria-label",
+      isPlaying ? "Pause background music" : "Play background music"
+    );
+    toggleState.textContent = isPlaying ? "On" : wantsAudio ? "Tap to play" : "Off";
+  };
+
   const tryPlay = () => {
+    if (!wantsAudio) {
+      audio.pause();
+      syncToggle();
+      return Promise.resolve(false);
+    }
+
     const playPromise = audio.play();
 
     if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {});
+      return playPromise
+        .then(() => {
+          syncToggle();
+          return true;
+        })
+        .catch(() => {
+          syncToggle();
+          return false;
+        });
     }
+
+    syncToggle();
+    return Promise.resolve(!audio.paused);
   };
+
+  const pauseAudio = () => {
+    wantsAudio = false;
+    writeStoredValue(STORAGE_KEYS.audioPreference, "off");
+    audio.pause();
+    syncToggle();
+  };
+
+  const resumeAudio = () => {
+    wantsAudio = true;
+    writeStoredValue(STORAGE_KEYS.audioPreference, "on");
+    return tryPlay();
+  };
+
+  toggleButton.addEventListener("click", () => {
+    if (wantsAudio && !audio.paused) {
+      pauseAudio();
+      return;
+    }
+
+    resumeAudio();
+  });
+
+  audio.addEventListener("play", syncToggle);
+  audio.addEventListener("pause", syncToggle);
+  syncToggle();
+
+  if (!wantsAudio) {
+    audio.pause();
+    return;
+  }
 
   // Try immediately for browsers that allow autoplay.
   tryPlay();
@@ -830,7 +1159,15 @@ const initBackgroundAudio = () => {
 
   // Fallback for autoplay-restricted browsers.
   ["pointerdown", "touchstart", "keydown"].forEach((eventName) => {
-    window.addEventListener(eventName, tryPlay, { once: true });
+    window.addEventListener(
+      eventName,
+      () => {
+        if (wantsAudio && audio.paused) {
+          tryPlay();
+        }
+      },
+      { once: true }
+    );
   });
 };
 
@@ -1237,8 +1574,18 @@ const initLoader = () =>
     const sentence = document.getElementById("loader-sentence");
     const tags = document.getElementById("loader-tags");
     const randoms = document.getElementById("loader-randoms");
+    const skipButton = document.getElementById("skip-loader");
     const circumference = 2 * Math.PI * 50;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const duration = reducedMotion ? 1400 : LOADER_DURATION;
     const startedAt = performance.now();
+    let frameId = 0;
+    let completed = false;
+
+    if (!loader || !progressFill || !ringFill || !seconds || !status || !sentence || !tags || !randoms) {
+      resolve();
+      return;
+    }
 
     const paintTags = () => {
       tags.innerHTML = "";
@@ -1282,13 +1629,32 @@ const initLoader = () =>
     const statusTimer = setInterval(rotateStatus, 1500);
     const sentenceTimer = setInterval(rotateSentence, 2200);
 
-    const complete = () => {
+    const cleanup = () => {
       clearInterval(tagTimer);
       clearInterval(randomsTimer);
       clearInterval(statusTimer);
       clearInterval(sentenceTimer);
+      cancelAnimationFrame(frameId);
+
+      if (skipButton) {
+        skipButton.removeEventListener("click", skipLoader);
+      }
+    };
+
+    const complete = (wasSkipped = false) => {
+      if (completed) {
+        return;
+      }
+
+      completed = true;
+      cleanup();
       loader.classList.add("is-hidden");
       document.body.classList.remove("is-loading");
+
+      if (skipButton) {
+        skipButton.disabled = true;
+        skipButton.textContent = wasSkipped ? "Opening..." : "Ready";
+      }
 
       setTimeout(() => {
         loader.remove();
@@ -1296,24 +1662,40 @@ const initLoader = () =>
       }, 820);
     };
 
+    const skipLoader = () => {
+      progressFill.style.width = "100%";
+      ringFill.style.strokeDasharray = String(circumference);
+      ringFill.style.strokeDashoffset = "0";
+      seconds.textContent = "0";
+      complete(true);
+    };
+
+    if (skipButton) {
+      skipButton.addEventListener("click", skipLoader);
+    }
+
     const tick = (now) => {
-      const elapsed = Math.min(now - startedAt, LOADER_DURATION);
-      const progress = elapsed / LOADER_DURATION;
-      const remainingSeconds = Math.max(0, Math.ceil((LOADER_DURATION - elapsed) / 1000));
+      if (completed) {
+        return;
+      }
+
+      const elapsed = Math.min(now - startedAt, duration);
+      const progress = elapsed / duration;
+      const remainingSeconds = Math.max(0, Math.ceil((duration - elapsed) / 1000));
 
       progressFill.style.width = `${progress * 100}%`;
       ringFill.style.strokeDasharray = String(circumference);
       ringFill.style.strokeDashoffset = String(circumference * (1 - progress));
       seconds.textContent = String(remainingSeconds);
 
-      if (elapsed < LOADER_DURATION) {
-        requestAnimationFrame(tick);
+      if (elapsed < duration) {
+        frameId = requestAnimationFrame(tick);
       } else {
         complete();
       }
     };
 
-    requestAnimationFrame(tick);
+    frameId = requestAnimationFrame(tick);
   });
 
 const init = async () => {

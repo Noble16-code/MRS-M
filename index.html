@@ -42,6 +42,9 @@
         </div>
       </div>
       <div class="loader-randoms" id="loader-randoms"></div>
+      <div class="loader-actions">
+        <button class="button ghost loader-skip-button" id="skip-loader" type="button">Skip Intro</button>
+      </div>
     </div>
   </div>
   <canvas id="sky-canvas" aria-hidden="true"></canvas>
@@ -50,6 +53,10 @@
   <div class="orb orb-two" aria-hidden="true"></div>
   <div class="orb orb-three" aria-hidden="true"></div>
   <div class="celebration-layer" id="celebration-layer" aria-hidden="true"></div>
+  <button class="audio-toggle" id="audio-toggle" type="button" aria-pressed="false" aria-label="Pause background music">
+    <span class="audio-toggle-label">Music</span>
+    <span class="audio-toggle-state" id="audio-toggle-state">Starting...</span>
+  </button>
 
   <header class="topbar">
     <a class="brand" href="#hero">My favorite Girl</a>
@@ -249,7 +256,7 @@
       <div class="section-heading">
         <p class="eyebrow">UUUUSSSS</p>
         <h2>Gallery</h2>
-        <p>Click the right page to flip forward, and click the left side to flip back.</p>
+        <p>Tap the top polaroid or swipe left to move forward, and tap left or swipe right to pull older memories back on top.</p>
       </div>
       <div class="book-lock" id="book-lock">
         <p class="fortune-label">Private Gallery</p>
