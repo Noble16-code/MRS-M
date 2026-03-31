@@ -131,8 +131,11 @@ const romanceProfile = {
     { id: "scene-4", label: "The Hope", title: "Why I made this for you", text: "Because I wanted to say something honest and memorable. And because you are worth effort, even the slightly dramatic kind.", accent: "If this made you smile, then honestly that already means a lot." }
   ],
   bookPages: [
-    { image: "", alt: "Gallery page 1", caption: "Page 1: Swap this URL for your own photo path." },
-    { image: "", alt: "Gallery page 2", caption: "Page 2: One object here equals one page in the book." },
+    { image: "IMG_4402.jpeg", alt: "Gallery photo 1", caption: "1" },
+    { image: "IMG_4412.jpeg", alt: "Gallery photo 2", caption: "2" },
+    { image: "IMG_4417.jpeg", alt: "Gallery photo 3", caption: "3" },
+    { image: "IMG_4420.jpeg", alt: "Gallery photo 4", caption: "4" },
+    { image: "IMG_4430.jpeg", alt: "Gallery photo 5", caption: "5" },
   ],
   blossoms: [
     "I like the way my mood changes when you show up.",
@@ -342,14 +345,15 @@ const renderScenes = () => {
   paintScene(activeScene);
 };
 
-const createBookFace = (page, side) => {
+const createBookFace = (page, side, pageNumber) => {
   const face = document.createElement("figure");
   face.className = `book-face ${side === "back" ? "book-face-back" : "book-face-front"}`;
   face.setAttribute("data-side", side);
   const photoSurface = document.createElement("div");
   photoSurface.className = "book-photo-surface";
+  const hasImage = Boolean(page && page.image);
 
-  if (page && page.image) {
+  if (hasImage) {
     const image = document.createElement("img");
     image.src = page.image;
     image.alt = page.alt || "Book gallery page";
@@ -357,22 +361,38 @@ const createBookFace = (page, side) => {
   } else {
     const placeholder = document.createElement("div");
     placeholder.className = "book-placeholder";
-    placeholder.innerHTML = "<span>Add an image URL/path for this page in romanceProfile.bookPages.</span>";
+    placeholder.innerHTML =
+      side === "front"
+        ? "<span>This page is waiting for a photo.</span>"
+        : "<span>The chapter ends here for now.</span>";
     photoSurface.appendChild(placeholder);
   }
 
   face.appendChild(photoSurface);
 
+  const pageCaption =
+    hasImage && typeof page.caption === "string" && page.caption.trim() && page.caption.trim() !== String(pageNumber)
+      ? page.caption.trim()
+      : hasImage
+        ? "."
+        : side === "front"
+          ? "."
+          : ".";
+
   const caption = document.createElement("figcaption");
   caption.className = "book-caption";
   const label = document.createElement("span");
   label.className = "book-caption-kicker";
-  label.textContent = side === "front" ? "scrapbook memory" : "turn it over";
+  label.textContent = hasImage ? `Page ${pageNumber}` : side === "front" ? "Opening page" : "Closing page";
   const note = document.createElement("span");
   note.className = "book-caption-hand";
-  note.textContent = page && page.caption ? page.caption : "Add a caption for this page.";
+  note.textContent = pageCaption;
+  const number = document.createElement("span");
+  number.className = "book-page-number";
+  number.textContent = hasImage ? String(pageNumber) : "";
   caption.appendChild(label);
   caption.appendChild(note);
+  caption.appendChild(number);
   face.appendChild(caption);
 
   return face;
@@ -396,55 +416,87 @@ const renderBookGallery = () => {
     return;
   }
 
-  const sheetCount = Math.ceil(pages.length / 2);
+  const sheetCount = pages.length;
+  const maxTurnedSheets = Math.max(0, sheetCount - 1);
   const sheets = [];
-  const stackRotations = ["-6deg", "-2deg", "2.8deg", "-3.4deg", "5deg", "-1.8deg"];
-  const stackOffsets = [
-    { x: "0rem", y: "0rem" },
-    { x: "-0.55rem", y: "0.4rem" },
-    { x: "0.7rem", y: "0.8rem" },
-    { x: "-0.3rem", y: "1.15rem" },
-    { x: "0.45rem", y: "1.55rem" }
-  ];
   let turnedSheets = 0;
   let unlocked = false;
   let touchStartX = 0;
   let touchStartY = 0;
   let ignoreBookTapUntil = 0;
+  let isAnimating = false;
 
   track.innerHTML = "";
 
   for (let index = 0; index < sheetCount; index += 1) {
     const sheet = document.createElement("article");
     sheet.className = "book-sheet";
-    sheet.style.zIndex = String(sheetCount - index);
-    sheet.style.setProperty("--stack-rotate", stackRotations[index % stackRotations.length]);
-    sheet.style.setProperty("--stack-x", stackOffsets[index % stackOffsets.length].x);
-    sheet.style.setProperty("--stack-y", stackOffsets[index % stackOffsets.length].y);
-    sheet.style.setProperty("--stack-scale", String(Math.max(0.88, 1 - index * 0.03)));
+    sheet.style.zIndex = String(sheetCount * 2 - index);
 
-    const frontPage = pages[index * 2];
-    const backPage = pages[index * 2 + 1];
+    const page = pages[index];
+    const pageNumber = index + 1;
 
-    sheet.appendChild(createBookFace(frontPage, "front"));
-    sheet.appendChild(createBookFace(backPage, "back"));
+    sheet.appendChild(createBookFace(page, "front", pageNumber));
+    sheet.appendChild(createBookFace(page, "back", pageNumber));
     track.appendChild(sheet);
     sheets.push(sheet);
   }
 
+  const setSheetOrder = () => {
+    sheets.forEach((sheet, index) => {
+      sheet.style.zIndex = String(
+        index < turnedSheets ? index + 1 : sheetCount * 2 - index
+      );
+    });
+  };
+
+  const updateControls = () => {
+    prevButton.disabled = !unlocked || isAnimating || turnedSheets <= 0;
+    nextButton.disabled = !unlocked || isAnimating || turnedSheets >= maxTurnedSheets;
+  };
+
+  const animateSheetTurn = (sheet, updateSheet) => {
+    if (!sheet || isAnimating) {
+      return;
+    }
+
+    isAnimating = true;
+    sheet.style.zIndex = String(sheetCount * 3);
+    updateSheet();
+    updateControls();
+
+    let hasSettled = false;
+    const finishAnimation = () => {
+      if (hasSettled) {
+        return;
+      }
+
+      hasSettled = true;
+      isAnimating = false;
+      setSheetOrder();
+      updateControls();
+    };
+
+    sheet.addEventListener(
+      "transitionend",
+      (event) => {
+        if (event.target === sheet && event.propertyName === "transform") {
+          finishAnimation();
+        }
+      },
+      { once: true }
+    );
+
+    window.setTimeout(finishAnimation, 1100);
+  };
+
   const updateIndicator = () => {
-    const startPage = Math.min(turnedSheets * 2 + 1, pages.length);
-    const endPage = Math.min(startPage + 1, pages.length);
-    indicator.textContent =
-      startPage === endPage
-        ? `Page ${startPage} of ${pages.length}`
-        : `Pages ${startPage}-${endPage} of ${pages.length}`;
+    const currentPage = Math.min(turnedSheets + 1, pages.length);
+    indicator.textContent = `Page ${currentPage} of ${pages.length}`;
   };
 
   const setLockState = (state) => {
     unlocked = state;
-    prevButton.disabled = !state;
-    nextButton.disabled = !state;
 
     if (flipbookShell) {
       flipbookShell.classList.toggle("is-locked", !state);
@@ -453,8 +505,8 @@ const renderBookGallery = () => {
     flipbook.setAttribute(
       "aria-label",
       state
-        ? "Photo flip book. Tap, swipe, or use the page buttons to move through the gallery."
-        : "Photo flip book locked until the password is entered."
+        ? "Photo book. Click the right page to turn forward, the left page to go back, or use the page buttons."
+        : "Photo book locked until the password is entered."
     );
 
     if (noteCard) {
@@ -463,35 +515,43 @@ const renderBookGallery = () => {
       const note = noteCard.querySelector("p:not(.fortune-label):not(.book-page-indicator)");
 
       if (title) {
-        title.textContent = state ? "Photo Album Unlocked" : "Photo Album Locked";
+        title.textContent = state ? "Photo Book Unlocked" : "Photo Book Locked";
       }
 
       if (note) {
         note.textContent = state
-          ? "Gallery unlocked. The polaroids can be tapped, swiped, or nudged with the buttons."
+          ? "Gallery unlocked. Click the right page to keep reading, the left page to revisit, or use the buttons below."
           : "Enter the password to open this section and flip through the pages.";
       }
     }
+
+    updateControls();
   };
 
   const flipForward = () => {
-    if (!unlocked || turnedSheets >= sheetCount) {
+    if (!unlocked || turnedSheets >= maxTurnedSheets || isAnimating) {
       return;
     }
 
-    sheets[turnedSheets].classList.add("is-turned");
+    const sheet = sheets[turnedSheets];
     turnedSheets += 1;
     updateIndicator();
+    animateSheetTurn(sheet, () => {
+      sheet.classList.add("is-turned");
+    });
   };
 
   const flipBackward = () => {
-    if (!unlocked || turnedSheets <= 0) {
+    if (!unlocked || turnedSheets <= 0 || isAnimating) {
       return;
     }
 
     turnedSheets -= 1;
-    sheets[turnedSheets].classList.remove("is-turned");
+    const sheet = sheets[turnedSheets];
     updateIndicator();
+    animateSheetTurn(sheet, () => {
+      sheet.classList.remove("is-turned");
+    });
   };
 
   nextButton.addEventListener("click", flipForward);
@@ -602,6 +662,7 @@ const renderBookGallery = () => {
   }
 
   setLockState(false);
+  setSheetOrder();
   updateIndicator();
 };
 
