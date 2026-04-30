@@ -1,13 +1,17 @@
 const LOADER_DURATION = 10000;
 const STORAGE_KEYS = {
   audioPreference: "mrsm-audio-enabled",
-  garden: "mrsm-garden"
+  garden: "mrsm-garden",
+  anniversaryMilestone: "mrsm-anniversary-milestone"
 };
 
 
 const romanceProfile = {
   herName: "Maia",
   yourName: "Dotun",
+  anniversary: {
+    startDate: "2026-03-30T00:00:00"
+  },
   heroWords: ["favorite hello", "Mommy,Maia", "best part of the day"],
   loadingStatuses: [
     "Dusting the butterflies and pretending this is normal.",
@@ -136,6 +140,13 @@ const romanceProfile = {
     { image: "IMG_4417.jpeg", alt: "Gallery photo 3", caption: "3" },
     { image: "IMG_4420.jpeg", alt: "Gallery photo 4", caption: "4" },
     { image: "IMG_4430.jpeg", alt: "Gallery photo 5", caption: "5" },
+    { image: "image.webp", alt: "Gallery photo 6", caption: "6" },
+    { image: "image (1).webp", alt: "Gallery photo 7", caption: "7" },
+    { image: "image (2).webp", alt: "Gallery photo 8", caption: "8" },
+    { image: "image (3).webp", alt: "Gallery photo 9", caption: "9" },
+    { image: "image (4).webp", alt: "Gallery photo 10", caption: "10" },
+    { image: "image (5).webp", alt: "Gallery photo 11", caption: "11" },
+    { image: "image (6).webp", alt: "Gallery photo 12", caption: "12" },
   ],
   blossoms: [
     "I like the way my mood changes when you show up.",
@@ -209,6 +220,114 @@ const writeStoredValue = (key, value) => {
   } catch {
     // Ignore storage failures and keep the experience working.
   }
+};
+
+const addMonthsClamped = (date, monthCount) => {
+  const result = new Date(
+    date.getFullYear(),
+    date.getMonth() + monthCount,
+    1,
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+    date.getMilliseconds()
+  );
+  const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+  result.setDate(Math.min(date.getDate(), lastDay));
+  return result;
+};
+
+const getCompletedMonthCount = (start, now) => {
+  if (now < start) {
+    return 0;
+  }
+
+  let monthCount =
+    (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth();
+
+  if (addMonthsClamped(start, monthCount) > now) {
+    monthCount -= 1;
+  }
+
+  return Math.max(0, monthCount);
+};
+
+const splitDuration = (start, end) => {
+  let remaining = Math.max(0, end.getTime() - start.getTime());
+  const days = Math.floor(remaining / 86400000);
+  remaining -= days * 86400000;
+  const hours = Math.floor(remaining / 3600000);
+  remaining -= hours * 3600000;
+  const minutes = Math.floor(remaining / 60000);
+  remaining -= minutes * 60000;
+  const seconds = Math.floor(remaining / 1000);
+
+  return { days, hours, minutes, seconds };
+};
+
+const getAnniversaryElapsed = (start, now) => {
+  if (now < start) {
+    return {
+      totalMonths: 0,
+      years: 0,
+      months: 0,
+      ...splitDuration(now, start),
+      isFuture: true
+    };
+  }
+
+  const totalMonths = getCompletedMonthCount(start, now);
+  const anchor = addMonthsClamped(start, totalMonths);
+
+  return {
+    totalMonths,
+    years: Math.floor(totalMonths / 12),
+    months: totalMonths % 12,
+    ...splitDuration(anchor, now),
+    isFuture: false
+  };
+};
+
+const formatAnniversaryDate = (date) =>
+  date.toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
+
+const formatMilestoneLabel = (totalMonths) => {
+  if (totalMonths < 1) {
+    return "First month in progress";
+  }
+
+  if (totalMonths % 12 === 0) {
+    const years = totalMonths / 12;
+    return `${years}yr milestone`;
+  }
+
+  if (totalMonths > 12) {
+    const years = Math.floor(totalMonths / 12);
+    const months = totalMonths % 12;
+    return `${years}yr ${months}mo milestone`;
+  }
+
+  return `${totalMonths}mo milestone`;
+};
+
+const formatShortDuration = ({ days, hours, minutes, seconds }) => {
+  const parts = [];
+
+  if (days > 0) {
+    parts.push(`${days}d`);
+  }
+
+  parts.push(`${hours}h`, `${minutes}m`, `${seconds}s`);
+  return parts.join(" ");
+};
+
+const getAnniversaryStart = () => {
+  const configuredDate = new Date(romanceProfile.anniversary.startDate);
+  return Number.isNaN(configuredDate.getTime()) ? null : configuredDate;
 };
 
 let activePaletteIndex = 0;
@@ -930,6 +1049,134 @@ const triggerButterflyPanic = () => {
   setTimeout(() => {
     document.body.classList.remove("chaos-mode");
   }, 3200);
+};
+
+const getAnniversaryStorageStart = (start) =>
+  [
+    start.getFullYear(),
+    String(start.getMonth() + 1).padStart(2, "0"),
+    String(start.getDate()).padStart(2, "0")
+  ].join("-");
+
+const triggerAnniversaryCelebration = (milestoneText) => {
+  const layer = document.getElementById("celebration-layer");
+  const milestoneNotes = [
+    milestoneText,
+    "monthly milestone unlocked",
+    "another month of you",
+    "this deserves a little sparkle"
+  ];
+
+  document.body.classList.add("anniversary-celebrating");
+
+  for (let i = 0; i < 18; i += 1) {
+    setTimeout(() => {
+      spawnSpark(layer);
+    }, i * 85);
+  }
+
+  milestoneNotes.forEach((note, index) => {
+    setTimeout(() => {
+      dropCompliment(layer, note);
+    }, index * 260);
+  });
+
+  complimentBurst(5);
+
+  setTimeout(() => {
+    document.body.classList.remove("anniversary-celebrating");
+  }, 3200);
+};
+
+const maybeCelebrateAnniversary = (start, totalMonths, milestoneText) => {
+  if (totalMonths < 1) {
+    return;
+  }
+
+  const startKey = getAnniversaryStorageStart(start);
+  const stored = readStoredJSON(STORAGE_KEYS.anniversaryMilestone, null);
+  const storedMonths =
+    stored && stored.start === startKey && Number.isFinite(Number(stored.months))
+      ? Number(stored.months)
+      : 0;
+
+  if (storedMonths >= totalMonths) {
+    return;
+  }
+
+  writeStoredValue(
+    STORAGE_KEYS.anniversaryMilestone,
+    JSON.stringify({ start: startKey, months: totalMonths })
+  );
+
+  setTimeout(() => {
+    triggerAnniversaryCelebration(milestoneText);
+  }, 800);
+};
+
+const initAnniversaryTimer = () => {
+  const timer = document.getElementById("anniversary-timer");
+  const label = document.getElementById("anniversary-label");
+  const milestone = document.getElementById("anniversary-milestone");
+  const date = document.getElementById("anniversary-date");
+  const note = document.getElementById("anniversary-note");
+  const years = document.getElementById("anniversary-years");
+  const months = document.getElementById("anniversary-months");
+  const days = document.getElementById("anniversary-days");
+  const hours = document.getElementById("anniversary-hours");
+  const minutes = document.getElementById("anniversary-minutes");
+  const seconds = document.getElementById("anniversary-seconds");
+  const start = getAnniversaryStart();
+
+  if (!timer || !label || !milestone || !date || !note || !start) {
+    return;
+  }
+
+  const paint = () => {
+    const now = new Date();
+    const elapsed = getAnniversaryElapsed(start, now);
+    const milestoneText = formatMilestoneLabel(elapsed.totalMonths);
+    const nextMilestone = addMonthsClamped(start, elapsed.totalMonths + 1);
+    const nextCountdown = elapsed.isFuture
+      ? splitDuration(now, start)
+      : splitDuration(now, nextMilestone);
+
+    label.textContent = elapsed.isFuture ? "Countdown" : "Current milestone";
+    milestone.textContent = elapsed.isFuture ? "Almost at the starting line" : milestoneText;
+    date.textContent = `Since ${formatAnniversaryDate(start)}`;
+    note.textContent = elapsed.isFuture
+      ? `Starts in ${formatShortDuration(nextCountdown)}.`
+      : `Next monthly milestone in ${formatShortDuration(nextCountdown)}.`;
+
+    if (years) {
+      years.textContent = String(elapsed.years);
+    }
+
+    if (months) {
+      months.textContent = String(elapsed.months);
+    }
+
+    if (days) {
+      days.textContent = String(elapsed.days);
+    }
+
+    if (hours) {
+      hours.textContent = String(elapsed.hours).padStart(2, "0");
+    }
+
+    if (minutes) {
+      minutes.textContent = String(elapsed.minutes).padStart(2, "0");
+    }
+
+    if (seconds) {
+      seconds.textContent = String(elapsed.seconds).padStart(2, "0");
+    }
+
+    maybeCelebrateAnniversary(start, elapsed.totalMonths, milestoneText);
+  };
+
+  paint();
+  window.setInterval(paint, 1000);
 };
 
 const initSparkles = () => {
@@ -1785,6 +2032,7 @@ const init = async () => {
   initConstellation();
 
   await initLoader();
+  initAnniversaryTimer();
   complimentBurst(4);
 };
 
